@@ -19,3 +19,19 @@ var (
 	// Identifier for the version of the ISO9660 standard used. Always 'CD001'
 	standardIdentifier = [5]uint8{0x43, 0x44, 0x30, 0x30, 0x31}
 )
+
+func uint16BothByte(value uint16) uint32 {
+	// Both byte representation of MS LS is LS MS MS LS
+	return ((uint32(value) & 0xFF00) << 8) | ((uint32(value) & 0xFF) << 24) | uint32(value)
+}
+
+func uint32BothByte(value uint32) uint64 {
+	// Both representation of ST UV WX YZ is YZ WX UV ST ST UV WX YZ
+	value64 := uint64(value)
+
+	return ((value64 & 0xFF) << 56) |
+		((value64 & 0xFF00) << 40) |
+		((value64 & 0xFF0000) << 24) |
+		((value64 & 0xFF000000) << 8) |
+		value64
+}
