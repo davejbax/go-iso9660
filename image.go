@@ -5,10 +5,14 @@ import (
 	"io/fs"
 )
 
-type Image struct{}
+type Image struct {
+	source fs.ReadDirFS
+}
 
 func NewImage(contents fs.ReadDirFS) (*Image, error) {
-	return nil, nil
+	return &Image{
+		source: contents,
+	}, nil
 }
 
 func (i *Image) WriteTo(w io.Writer) (n int64, err error) {

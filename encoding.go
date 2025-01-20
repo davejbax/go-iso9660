@@ -14,3 +14,8 @@ const (
 	separator1 = 0x2E
 	separator2 = 0x3B
 )
+
+var (
+	// Identifier for the version of the ISO9660 standard used. Always 'CD001'
+	standardIdentifier = [5]uint8{0x43, 0x44, 0x30, 0x30, 0x31}
+)

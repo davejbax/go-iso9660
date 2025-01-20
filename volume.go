@@ -1,6 +1,11 @@
 package iso9660
 
-import "io"
+import (
+	"fmt"
+	"github.com/itchio/headway/counter"
+	"github.com/lunixbochs/struc"
+	"io"
+)
 
 const logicalSectorSize = 2048
 
@@ -24,11 +29,13 @@ type volumeDescriptor struct {
 }
 
 type primaryVolumeDescriptor struct {
-	volumeDescriptor
+	Header                         volumeDescriptor
 	Unused8                        uint8
 	SystemIdentifier               [32]aCharacter
 	VolumeIdentifier               [32]dCharacter
 	Unused73                       [8]uint8
+	VolumeSpaceSize                uint64
+	Unused89                       [32]uint8
 	VolumeSetSize                  uint32
 	VolumeSequenceNumber           uint32
 	LogicalBlockSize               uint32
@@ -52,9 +59,15 @@ type primaryVolumeDescriptor struct {
 	FileStructureVersion           uint8
 	Reserved883                    uint8
 	ApplicationUse                 [512]uint8
-	Reserved1396                   [652]uint8
+	Reserved1396                   [653]uint8
 }
 
 func (p *primaryVolumeDescriptor) WriteTo(w io.Writer) (n int64, err error) {
-	return 0, nil
+	cw := counter.NewWriter(w)
+
+	if err := struc.Pack(cw, p); err != nil {
+		return cw.Count(), fmt.Errorf("could not pack structure: %w", err)
+	}
+
+	return cw.Count(), nil
 }

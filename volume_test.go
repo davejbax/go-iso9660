@@ -13,6 +13,6 @@ func TestPrimaryVolumeDescriptor_WriteTo(t *testing.T) {
 
 	written, err := pvd.WriteTo(buff)
 	require.NoError(t, err, "Primary volume descriptor should be written without error")
-	assert.Equal(t, written, buff.Len(), "Number of written bytes returned should reflect reality")
+	assert.Equal(t, written, int64(buff.Len()), "Number of written bytes returned should reflect reality")
 	assert.Equal(t, logicalSectorSize, buff.Len(), "Primary volume descriptor should write one logical sector of bytes")
 }
