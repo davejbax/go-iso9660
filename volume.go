@@ -44,7 +44,7 @@ type primaryVolumeDescriptor struct {
 	LocationTypeLOptionalPathTable uint32 `struc:"little"`
 	LocationTypeMPathTable         uint32 `struc:"big"`
 	LocationTypeMOptionalPathTable uint32 `struc:"big"`
-	RootDirectoryRecord            [34]uint8
+	RootDirectoryRecord            directoryRecord
 	VolumeSetIdentifier            [128]dCharacter
 	PublisherIdentifier            [128]aCharacter
 	DataPreparerIdentifier         [128]dCharacter

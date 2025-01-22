@@ -8,7 +8,11 @@ import (
 )
 
 func TestPrimaryVolumeDescriptor_WriteTo(t *testing.T) {
-	pvd := &primaryVolumeDescriptor{}
+	pvd := &primaryVolumeDescriptor{
+		RootDirectoryRecord: directoryRecord{
+			FileIdentifier: []dCharacter{0x00},
+		},
+	}
 	buff := bytes.NewBuffer(nil)
 
 	written, err := pvd.WriteTo(buff)

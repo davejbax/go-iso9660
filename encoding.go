@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/lunixbochs/struc"
 	"io"
+	"time"
 )
 
 var (
@@ -125,4 +126,27 @@ func (f uint32BothByteField) String() string {
 
 func (f uint32BothByteField) Size(_ *struc.Options) int {
 	return 8
+}
+
+type dateTime struct {
+	YearsSince1900            uint8
+	Month                     uint8
+	Day                       uint8
+	Hour                      uint8
+	Minute                    uint8
+	Second                    uint8
+	GMTOffsetIn15MinIntervals uint8
+}
+
+func newDateTime(t time.Time) dateTime {
+	t = t.UTC()
+	return dateTime{
+		YearsSince1900:            uint8(t.Year() - 1900),
+		Month:                     uint8(t.Month()),
+		Day:                       uint8(t.Day()),
+		Hour:                      uint8(t.Hour()),
+		Minute:                    uint8(t.Minute()),
+		Second:                    uint8(t.Second()),
+		GMTOffsetIn15MinIntervals: 0,
+	}
 }
