@@ -34,16 +34,16 @@ type primaryVolumeDescriptor struct {
 	SystemIdentifier               [32]aCharacter
 	VolumeIdentifier               [32]dCharacter
 	Unused73                       [8]uint8
-	VolumeSpaceSize                uint64
+	VolumeSpaceSize                uint32BothByteField
 	Unused89                       [32]uint8
-	VolumeSetSize                  uint32
-	VolumeSequenceNumber           uint32
-	LogicalBlockSize               uint32
-	PathTableSize                  uint64
-	LocationTypeLPathTable         uint32
-	LocationTypeLOptionalPathTable uint32
-	LocationTypeMPathTable         uint32
-	LocationTypeMOptionalPathTable uint32
+	VolumeSetSize                  uint16BothByteField
+	VolumeSequenceNumber           uint16BothByteField
+	LogicalBlockSize               uint16BothByteField
+	PathTableSize                  uint32BothByteField
+	LocationTypeLPathTable         uint32 `struc:"little"`
+	LocationTypeLOptionalPathTable uint32 `struc:"little"`
+	LocationTypeMPathTable         uint32 `struc:"big"`
+	LocationTypeMOptionalPathTable uint32 `struc:"big"`
 	RootDirectoryRecord            [34]uint8
 	VolumeSetIdentifier            [128]dCharacter
 	PublisherIdentifier            [128]aCharacter
