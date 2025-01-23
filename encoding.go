@@ -7,13 +7,20 @@ import (
 	"fmt"
 	"github.com/lunixbochs/struc"
 	"io"
+	"regexp"
+	"strings"
 	"time"
 )
 
 var (
 	errUnimplemented  = errors.New("method is not implemented")
-	errBufferTooSmall = errors.New("provider byte slice is not big enough to pack into")
+	errBufferTooSmall = errors.New("provided slice buffer is not big enough to pack all data into")
+
+	// TODO: export?
+	errInvalidCharacters = errors.New("input string contains characters that violate encoding")
 )
+
+const fillerByte = 0x20
 
 // a-characters are:
 //
@@ -21,9 +28,71 @@ var (
 //	! " % & ' ( ) * + , - . / : ; < = > ?
 type aCharacter uint8
 
+var aCharacterRegex = regexp.MustCompile(`^[A-Z0-9_!"%&'()*+,\-./:;<=>?]+$`)
+
+func strToACharacters(input string, output []aCharacter, strict bool, tryConvert bool) error {
+	if tryConvert {
+		input = strings.ToUpper(input)
+	}
+
+	if strict && !aCharacterRegex.MatchString(input) {
+		return errInvalidCharacters
+	}
+
+	if len(output) < len(input) {
+		return errBufferTooSmall
+	}
+
+	inputBytes := []aCharacter(input)
+	copy(output, inputBytes)
+
+	for i := len(inputBytes); i < len(output); i++ {
+		output[i] = aCharacter(fillerByte)
+	}
+
+	return nil
+}
+
 // d-characters are:
 // A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 0 1 2 3 4 5 6 7 8 9 _
 type dCharacter uint8
+
+var dCharacterRegex = regexp.MustCompile(`^[A-Z0-9_]+$`)
+
+func strToDCharacters(input string, output []dCharacter, strict bool, tryConvert bool) error {
+	if tryConvert {
+		input = strings.ToUpper(input)
+	}
+
+	if strict && !dCharacterRegex.MatchString(input) {
+		return errInvalidCharacters
+	}
+
+	if len(output) < len(input) {
+		return errBufferTooSmall
+	}
+
+	inputBytes := []dCharacter(input)
+	copy(output, inputBytes)
+
+	for i := len(inputBytes); i < len(output); i++ {
+		output[i] = dCharacter(fillerByte)
+	}
+
+	// TODO: possibly fill with 0x20?
+	return nil
+}
+
+func zeroCharacterArray[T dCharacter | aCharacter](array []T) {
+	for i := 0; i < len(array); i++ {
+		array[i] = T(fillerByte)
+	}
+}
+
+// TODO: Joliet support, and/or general support for other escape sequences in the supplementary volume
+// See ISO 2022 for escape sequences; notable ones are:
+// - 25 2F 40/43/45 -- all UTF-16; required to be one of these for Joliet
+// - all zeros for d-characters
 
 const (
 	separator1 = 0x2E
@@ -149,4 +218,26 @@ func newDateTime(t time.Time) dateTime {
 		Second:                    uint8(t.Second()),
 		GMTOffsetIn15MinIntervals: 0,
 	}
+}
+
+type longDateTime struct {
+	YearDigits                [4]uint8
+	MonthDigits               [2]uint8
+	DayDigits                 [2]uint8
+	HourDigits                [2]uint8
+	MinuteDigits              [2]uint8
+	SecondDigits              [2]uint8
+	CentisecondsDigits        [2]uint8
+	GMTOffsetIn15MinIntervals uint8
+}
+
+var zeroLongDateTime = longDateTime{
+	YearDigits:                [4]uint8{'0', '0', '0', '0'},
+	MonthDigits:               [2]uint8{'0', '0'},
+	DayDigits:                 [2]uint8{'0', '0'},
+	HourDigits:                [2]uint8{'0', '0'},
+	MinuteDigits:              [2]uint8{'0', '0'},
+	SecondDigits:              [2]uint8{'0', '0'},
+	CentisecondsDigits:        [2]uint8{'0', '0'},
+	GMTOffsetIn15MinIntervals: 0,
 }
