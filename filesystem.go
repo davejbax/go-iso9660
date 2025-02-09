@@ -18,7 +18,7 @@ func newDirectory(filesystem fs.ReadDirFS, filesystemPath string, parent *direct
 		identifier = fileIdentifierSelf
 	} else {
 		var err error
-		identifier, err = newFileIdentifier(path.Base(filesystemPath), "", 0, fileIdentifierEncodingDCharacter)
+		identifier, err = newFileIdentifier(path.Base(filesystemPath), "", 1, fileIdentifierEncodingDCharacter)
 		if err != nil {
 			return nil, fmt.Errorf("directory has invalid name: %w", err)
 		}

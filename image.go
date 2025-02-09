@@ -26,7 +26,7 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 	block := uint32(17)
 	relocateTree(dir, &block)
 
-	pvd, err := newPrimaryVolumeDescriptor(
+	_, err = newPrimaryVolumeDescriptor(
 		"",
 		"test",
 		"test",
@@ -45,7 +45,5 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 		return 0, fmt.Errorf("could not create primary volume descriptor: %w", err)
 	}
 
-	currentBlock := 16
-	
 	return 0, nil
 }

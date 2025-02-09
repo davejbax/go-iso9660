@@ -61,6 +61,10 @@ type dCharacter uint8
 var dCharacterRegex = regexp.MustCompile(`^[A-Z0-9_]+$`)
 
 func strToDCharacters(input string, output []dCharacter, strict bool, tryConvert bool) error {
+	if len(input) == 0 {
+		return nil
+	}
+
 	if tryConvert {
 		input = strings.ToUpper(input)
 	}
