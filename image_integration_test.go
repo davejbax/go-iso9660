@@ -19,7 +19,7 @@ import (
 )
 
 func TestImage(t *testing.T) {
-	contents := os.DirFS("testdata").(fs.ReadDirFS)
+	contents := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
 	image, err := iso9660.NewImage(contents)
 
 	require.NoError(t, err, "NewImage should not return an error for valid arguments")

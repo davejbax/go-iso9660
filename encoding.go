@@ -8,6 +8,7 @@ import (
 	"github.com/lunixbochs/struc"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -240,4 +241,67 @@ var zeroLongDateTime = longDateTime{
 	SecondDigits:              [2]uint8{'0', '0'},
 	CentisecondsDigits:        [2]uint8{'0', '0'},
 	GMTOffsetIn15MinIntervals: 0,
+}
+
+type fileIdentifier []uint8
+
+var (
+	fileIdentifierSelf   = fileIdentifier{0x00}
+	fileIdentifierParent = fileIdentifier{0x01}
+
+	errUnsupportedEncoding = errors.New("unsupported file identifier encoding")
+	errInvalidVersion      = errors.New("invalid file version number; must be in the range 1-32767 (inclusive)")
+)
+
+type fileIdentifierEncoding int
+
+const (
+	fileIdentifierEncodingDCharacter fileIdentifierEncoding = iota
+)
+
+func newFileIdentifier(filename string, extension string, version int, encoding fileIdentifierEncoding) (fileIdentifier, error) {
+	if version < 1 || version > 32767 {
+		return nil, errInvalidVersion
+	}
+
+	switch encoding {
+	case fileIdentifierEncodingDCharacter:
+		encodedFilename := make([]dCharacter, len(filename))
+		if err := strToDCharacters(filename, encodedFilename, true, true); err != nil {
+			return nil, fmt.Errorf("could not encode filename as d-characters: %w", err)
+		}
+
+		encodedExtension := make([]dCharacter, len(extension))
+		if err := strToDCharacters(extension, encodedExtension, true, true); err != nil {
+			return nil, fmt.Errorf("could not encode extension as d-characters: %w", err)
+		}
+
+		versionString := strconv.Itoa(version)
+
+		fi := make(fileIdentifier, len(encodedFilename)+1+len(encodedExtension)+1+len(versionString))
+		i := 0
+		for _, v := range encodedFilename {
+			fi[i] = uint8(v)
+			i += 1
+		}
+
+		if extension != "" {
+			fi[i] = uint8('.')
+			i += 1
+			for _, v := range encodedExtension {
+				fi[i] = uint8(v)
+				i += 1
+			}
+			fi[i] = uint8(';')
+			i += 1
+			for _, v := range versionString {
+				fi[i] = uint8(v)
+				i += 1
+			}
+		}
+
+		return fi, nil
+	default:
+		return nil, errUnsupportedEncoding
+	}
 }

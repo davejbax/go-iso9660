@@ -79,6 +79,7 @@ type primaryVolumeDescriptor struct {
 	Reserved1396                [653]uint8
 }
 
+// TODO: unit test this!
 func newPrimaryVolumeDescriptor(
 	systemIdentifier, volumeIdentifier, volumeSetIdentifier, publisherIdentifier, dataPreparerIdentifier, applicationIdentifier string,
 	volumeSpaceSize uint32,
@@ -99,7 +100,7 @@ func newPrimaryVolumeDescriptor(
 		VolumeSpaceSize: uint32BothByte(volumeSpaceSize),
 
 		// We don't currently support multiple volumes in a volume set
-		// TODO[future]: add support, if it'd be useful
+		// TODO[multivolume]: add support, if it'd be useful
 		VolumeSetSize:        uint16BothByte(1),
 		VolumeSequenceNumber: uint16BothByte(1),
 
@@ -173,7 +174,7 @@ func newPrimaryVolumeDescriptor(
 	return pvd, nil
 }
 
-func (p *primaryVolumeDescriptor) WriteTo(w io.Writer) (n int64, err error) {
+func (p *primaryVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
 	cw := counter.NewWriter(w)
 
 	if err := struc.Pack(cw, p); err != nil {
