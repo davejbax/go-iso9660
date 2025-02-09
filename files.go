@@ -5,6 +5,7 @@ import (
 	"github.com/itchio/headway/counter"
 	"github.com/lunixbochs/struc"
 	"io"
+	"iter"
 	"time"
 )
 
@@ -40,6 +41,22 @@ type directoryRecord struct {
 	FileIdentifier fileIdentifier
 }
 
+func (d *directoryRecord) WriteTo(w io.Writer) (int64, error) {
+	cw := counter.NewWriter(w)
+	if err := struc.Pack(cw, d); err != nil {
+		return cw.Count(), fmt.Errorf("failed to pack directory record: %w", err)
+	}
+
+	// We don't have a magical 'padding' field, so we need to pad ourselves
+	if remainder := int64(d.Length) - cw.Count(); remainder > 0 {
+		if _, err := cw.Write(make([]byte, remainder)); err != nil {
+			return cw.Count(), fmt.Errorf("failed to pad directory record: %w", err)
+		}
+	}
+
+	return cw.Count(), nil
+}
+
 func directoryRecordLength(nameLength int) uint8 {
 	padding := 0
 
@@ -55,6 +72,9 @@ func directoryRecordLength(nameLength int) uint8 {
 type fileLike interface {
 	Record() *directoryRecord
 	RecordLength() uint8
+	DataLength() uint32
+	Relocate(newLocation uint32)
+	Entries() []fileLike
 }
 
 type directory struct {
@@ -95,7 +115,7 @@ func (d *directory) Record() *directoryRecord {
 		Length:                        d.RecordLength(),
 		ExtendedAttributeRecordLength: 0,
 		ExtentLocation:                uint32BothByte(d.location),
-		DataLength:                    uint32BothByte(d.dataLength()),
+		DataLength:                    uint32BothByte(d.DataLength()),
 		RecordingDateAndTime:          newDateTime(d.recordedAt),
 		FileFlags:                     fileFlagDirectory | d.flags,
 
@@ -105,9 +125,10 @@ func (d *directory) Record() *directoryRecord {
 
 		// We aren't supporting multiple volumes currently
 		// TODO[multivolume]
-		VolumeSequenceNumber: 1,
+		VolumeSequenceNumber: uint16BothByte(1),
 
-		FileIdentifier: d.name,
+		LengthOfFileIdentifier: uint8(len(d.name)),
+		FileIdentifier:         d.name,
 	}
 }
 
@@ -115,7 +136,15 @@ func (d *directory) RecordLength() uint8 {
 	return directoryRecordLength(len(d.name))
 }
 
-func (d *directory) dataLength() uint32 {
+func (d *directory) Relocate(newLocation uint32) {
+	d.location = newLocation
+}
+
+func (d *directory) Entries() []fileLike {
+	return d.entries
+}
+
+func (d *directory) DataLength() uint32 {
 	// Every directory always contains a . (self) and .. (parent) record
 	// Hence, the directory payload is always going to be that long at least.
 	size := uint32(directoryRecordLength(len(fileIdentifierSelf)) + directoryRecordLength(len(fileIdentifierParent)))
@@ -127,8 +156,25 @@ func (d *directory) dataLength() uint32 {
 	return size
 }
 
+func (d *directory) Walk() iter.Seq[fileLike] {
+	return func(yield func(fileLike) bool) {
+		queue := []fileLike{d}
+		for len(queue) > 0 {
+			node := queue[0]
+			queue = queue[1:]
+
+			if !yield(node) {
+				break
+			}
+
+			queue = append(queue, node.Entries()...)
+		}
+	}
+}
+
 func (d *directory) selfRecord() *directoryRecord {
 	dr := d.Record()
+	dr.LengthOfFileIdentifier = uint8(len(fileIdentifierSelf))
 	dr.FileIdentifier = fileIdentifierSelf
 	dr.Length = directoryRecordLength(len(fileIdentifierSelf))
 
@@ -137,6 +183,7 @@ func (d *directory) selfRecord() *directoryRecord {
 
 func (d *directory) parentRecord() *directoryRecord {
 	dr := d.parent.Record()
+	dr.LengthOfFileIdentifier = uint8(len(fileIdentifierParent))
 	dr.FileIdentifier = fileIdentifierParent
 	dr.Length = directoryRecordLength(len(fileIdentifierParent))
 
@@ -170,17 +217,31 @@ func (f *file) Record() *directoryRecord {
 		DataLength:                    uint32BothByte(f.dataLength),
 		RecordingDateAndTime:          newDateTime(f.recordedAt),
 		FileFlags:                     f.flags,
-
 		// These fields are used for interleaving and hence we leave them unset
 		FileUnitSize:      0,
 		InterleaveGapSize: 0,
-
 		// We aren't supporting multiple volumes currently
 		// TODO[multivolume]
-		VolumeSequenceNumber: 1,
+		VolumeSequenceNumber: uint16BothByte(1),
+
+		LengthOfFileIdentifier: uint8(len(f.name)),
+		FileIdentifier:         f.name,
 	}
 }
 
 func (f *file) RecordLength() uint8 {
 	return directoryRecordLength(len(f.name))
+}
+
+func (f *file) Relocate(newLocation uint32) {
+	f.location = newLocation
+}
+
+func (f *file) Entries() []fileLike {
+	// Files have no entries
+	return nil
+}
+
+func (f *file) DataLength() uint32 {
+	return f.dataLength
 }

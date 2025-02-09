@@ -88,7 +88,7 @@ func newPrimaryVolumeDescriptor(
 	pathTableLOptionalLocationBlockNumber uint32,
 	pathTableMLocationBlockNumber uint32,
 	pathTableMOptionalLocationBlockNumber uint32,
-	rootDirectory directory,
+	rootDirectory *directory,
 ) (*primaryVolumeDescriptor, error) {
 	pvd := &primaryVolumeDescriptor{
 		Header: &volumeDescriptor{

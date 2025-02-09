@@ -18,10 +18,34 @@ func NewImage(contents fs.ReadDirFS) (*Image, error) {
 }
 
 func (i *Image) WriteTo(w io.Writer) (int64, error) {
-	_, err := newDirectory(i.source, ".", nil, time.Now())
+	dir, err := newDirectory(i.source, ".", nil, time.Now())
 	if err != nil {
 		return 0, fmt.Errorf("could not create directory: %w", err)
 	}
 
+	block := uint32(17)
+	relocateTree(dir, &block)
+
+	pvd, err := newPrimaryVolumeDescriptor(
+		"",
+		"test",
+		"test",
+		"publisher",
+		"datapreparer",
+		"application",
+		block,
+		0,
+		0,
+		0,
+		0,
+		0,
+		dir,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("could not create primary volume descriptor: %w", err)
+	}
+
+	currentBlock := 16
+	
 	return 0, nil
 }
