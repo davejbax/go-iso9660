@@ -104,3 +104,20 @@ func (p *pathTable) WriteTo(w io.Writer, bigEndian bool) (int64, error) {
 
 	return cw.Count(), nil
 }
+
+func (p *pathTable) BigEndianWriterTo() *pathTableWriterTo {
+	return &pathTableWriterTo{table: p, bigEndian: true}
+}
+
+func (p *pathTable) LittleEndianWriterTo() *pathTableWriterTo {
+	return &pathTableWriterTo{table: p, bigEndian: false}
+}
+
+type pathTableWriterTo struct {
+	bigEndian bool
+	table     *pathTable
+}
+
+func (ptwt *pathTableWriterTo) WriteTo(w io.Writer) (int64, error) {
+	return ptwt.table.WriteTo(w, ptwt.bigEndian)
+}
