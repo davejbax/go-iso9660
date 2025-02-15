@@ -183,3 +183,16 @@ func (p *primaryVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
 
 	return cw.Count(), nil
 }
+
+func writeTerminatorVolumeDescriptor(w io.Writer) (int64, error) {
+	cw := counter.NewWriter(w)
+	if err := struc.Pack(cw, &volumeDescriptor{
+		Kind:                    volumeDescriptorTypeTerminator,
+		StandardIdentifier:      standardIdentifier,
+		VolumeDescriptorVersion: 1, // Always 1
+	}); err != nil {
+		return cw.Count(), fmt.Errorf("could not pack structure: %w", err)
+	}
+
+	return cw.Count(), nil
+}

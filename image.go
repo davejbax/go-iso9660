@@ -23,7 +23,7 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 		return 0, fmt.Errorf("could not create directory: %w", err)
 	}
 
-	block := uint32(17)
+	block := uint32(18) // 18 because 16 is PVD and 17 is TVD
 
 	pathTable := newPathTable(dir)
 	pathTableSize := pathTable.Size()
@@ -36,7 +36,7 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 	// Set locations for the files and directories
 	relocateTree(dir, &block)
 
-	_, err = newPrimaryVolumeDescriptor(
+	pvd, err := newPrimaryVolumeDescriptor(
 		"",
 		"test",
 		"test",
@@ -55,5 +55,30 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 		return 0, fmt.Errorf("could not create primary volume descriptor: %w", err)
 	}
 
-	return 0, nil
+	bw := newBlockWriter(w)
+
+	if err := bw.WriteBlock(16, pvd); err != nil {
+		return bw.BytesWritten(), fmt.Errorf("failed to write PVD: %w", err)
+	}
+
+	if err := bw.WriteBlockFunc(17, writeTerminatorVolumeDescriptor); err != nil {
+		return bw.BytesWritten(), fmt.Errorf("failed to write terminator volume descriptor: %w", err)
+	}
+
+	if err := bw.WriteBlock(pathTableLBlock, pathTable.LittleEndianWriterTo()); err != nil {
+		return bw.BytesWritten(), fmt.Errorf("failed to write L-type path table: %w", err)
+	}
+
+	if err := bw.WriteBlock(pathTableMBlock, pathTable.BigEndianWriterTo()); err != nil {
+		return bw.BytesWritten(), fmt.Errorf("failed to write M-type path table: %w", err)
+	}
+
+	for entry := range dir.Walk(false) {
+		fmt.Printf("locating %s at %d\n", string(entry.Record().FileIdentifier), entry.Location())
+		if err := bw.WriteBlock(entry.Location(), entry); err != nil {
+			return bw.BytesWritten(), fmt.Errorf("failed to write entry: %w", err)
+		}
+	}
+
+	return bw.BytesWritten(), nil
 }
