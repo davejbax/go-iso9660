@@ -67,6 +67,19 @@ func (p *pathTable) Records() iter.Seq[*pathTableRecord] {
 	}
 }
 
+func (p *pathTable) Size() uint32 {
+	total := uint32(0)
+
+	for record := range p.Records() {
+		total += 8 + uint32(record.LengthOfDirectoryIdentifier)
+		if record.LengthOfDirectoryIdentifier%2 == 1 {
+			total += 1 // Padding
+		}
+	}
+
+	return total
+}
+
 func (p *pathTable) WriteTo(w io.Writer, bigEndian bool) (int64, error) {
 	cw := counter.NewWriter(w)
 

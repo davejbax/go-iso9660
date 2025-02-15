@@ -24,6 +24,16 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	block := uint32(17)
+
+	pathTable := newPathTable(dir)
+	pathTableSize := pathTable.Size()
+
+	// Generally the path table should come before the disk contents, if this was an actual CD, to make it easier to
+	// skip to the relevant content
+	pathTableLBlock := allocateAndIncrementBlock(&block, pathTableSize)
+	pathTableMBlock := allocateAndIncrementBlock(&block, pathTableSize)
+
+	// Set locations for the files and directories
 	relocateTree(dir, &block)
 
 	_, err = newPrimaryVolumeDescriptor(
@@ -34,10 +44,10 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 		"datapreparer",
 		"application",
 		block,
+		pathTableSize,
+		pathTableLBlock,
 		0,
-		0,
-		0,
-		0,
+		pathTableMBlock,
 		0,
 		dir,
 	)
