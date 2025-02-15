@@ -19,7 +19,7 @@ func newBlockWriter(wrapped io.Writer) *blockWriter {
 	return &blockWriter{wrapped: counter.NewWriter(wrapped)}
 }
 
-func (w *blockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
+func (w *blockWriter) WriteBlockFunc(number uint32, writeTo func(io.Writer) (int64, error)) error {
 	if number < w.currentBlock {
 		return errNonSequentialBlockWrite
 	}
@@ -33,7 +33,7 @@ func (w *blockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
 		w.currentBlock += 1
 	}
 
-	contentsSize, err := contents.WriteTo(w.wrapped)
+	contentsSize, err := writeTo(w.wrapped)
 	if err != nil {
 		return fmt.Errorf("failed to write contents to block: %w", err)
 	}
@@ -51,6 +51,10 @@ func (w *blockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
 	w.currentBlock += uint32(contentsBlocks)
 
 	return nil
+}
+
+func (w *blockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
+	return w.WriteBlockFunc(number, contents.WriteTo)
 }
 
 func (w *blockWriter) BytesWritten() int64 {
