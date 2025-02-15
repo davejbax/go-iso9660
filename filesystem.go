@@ -110,10 +110,11 @@ func newFile(filesystem fs.FS, filesystemPath string, recordedAt time.Time, size
 	}, nil
 }
 
+// TODO add tests for this
 func compareDirEntries(a, b fs.DirEntry) int {
 	// Files comprise 'file names' and 'file name extensions', separated by a period
 	aFilename, aExtension, _ := strings.Cut(a.Name(), ".")
-	bFilename, bExtension, _ := strings.Cut(a.Name(), ".")
+	bFilename, bExtension, _ := strings.Cut(b.Name(), ".")
 
 	// First, sort by file name
 	if cmp := strings.Compare(aFilename, bFilename); cmp != 0 {
@@ -130,9 +131,9 @@ func compareDirEntries(a, b fs.DirEntry) int {
 
 	// Sort directories before files, if everything else is equal
 	if aIsDir && !bIsDir {
-		return 1
-	} else if !aIsDir && bIsDir {
 		return -1
+	} else if !aIsDir && bIsDir {
+		return 1
 	}
 
 	return 0
