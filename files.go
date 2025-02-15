@@ -156,7 +156,7 @@ func (d *directory) DataLength() uint32 {
 	return size
 }
 
-func (d *directory) Walk() iter.Seq[fileLike] {
+func (d *directory) Walk(depthFirst bool) iter.Seq[fileLike] {
 	return func(yield func(fileLike) bool) {
 		queue := []fileLike{d}
 		for len(queue) > 0 {
@@ -167,9 +167,17 @@ func (d *directory) Walk() iter.Seq[fileLike] {
 				break
 			}
 
-			queue = append(queue, node.Entries()...)
+			if depthFirst {
+				queue = append(node.Entries(), queue...)
+			} else {
+				queue = append(queue, node.Entries()...)
+			}
 		}
 	}
+}
+
+func (d *directory) Parent() fileLike {
+	return d.parent
 }
 
 func (d *directory) selfRecord() *directoryRecord {

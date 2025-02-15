@@ -282,25 +282,25 @@ func newFileIdentifier(filename string, extension string, version int, encoding 
 
 		versionString := strconv.Itoa(version)
 
-		fi := make(fileIdentifier, len(encodedFilename)+1+len(encodedExtension)+1+len(versionString))
-		i := 0
+		fi := make(fileIdentifier, 0, len(encodedFilename)+1+len(encodedExtension)+1+len(versionString))
+
 		for _, v := range encodedFilename {
-			fi[i] = uint8(v)
-			i += 1
+			fi = append(fi, uint8(v))
 		}
 
 		if extension != "" {
-			fi[i] = uint8('.')
-			i += 1
+			// Separator 1 (a period, before file extension)
+			fi = append(fi, uint8('.'))
+
 			for _, v := range encodedExtension {
-				fi[i] = uint8(v)
-				i += 1
+				fi = append(fi, uint8(v))
 			}
-			fi[i] = uint8(';')
-			i += 1
+
+			// Separator 2 (a semicolon, before version)
+			fi = append(fi, uint8(';'))
+
 			for _, v := range versionString {
-				fi[i] = uint8(v)
-				i += 1
+				fi = append(fi, uint8(v))
 			}
 		}
 

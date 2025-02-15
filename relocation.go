@@ -1,7 +1,7 @@
 package iso9660
 
 func relocateTree(root *directory, block *uint32) {
-	for entry := range root.Walk() {
+	for entry := range root.Walk(false) {
 		entry.Relocate(allocateAndIncrementBlock(block, entry.DataLength()))
 	}
 }
