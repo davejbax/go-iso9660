@@ -32,6 +32,10 @@ type aCharacter uint8
 var aCharacterRegex = regexp.MustCompile(`^[A-Z0-9_!"%&'()*+,\-./:;<=>?]+$`)
 
 func strToACharacters(input string, output []aCharacter, strict bool, tryConvert bool) error {
+	if len(input) == 0 {
+		return nil
+	}
+
 	if tryConvert {
 		input = strings.ToUpper(input)
 	}
