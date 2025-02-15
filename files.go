@@ -70,9 +70,12 @@ func directoryRecordLength(nameLength int) uint8 {
 }
 
 type fileLike interface {
+	io.WriterTo
+
 	Record() *directoryRecord
 	RecordLength() uint8
 	DataLength() uint32
+	Location() uint32
 	Relocate(newLocation uint32)
 	Entries() []fileLike
 }
@@ -93,16 +96,16 @@ func (d *directory) WriteTo(w io.Writer) (int64, error) {
 	selfRecord := d.selfRecord()
 	parentRecord := d.parentRecord()
 
-	if err := struc.Pack(cw, selfRecord); err != nil {
+	if _, err := selfRecord.WriteTo(cw); err != nil {
 		return cw.Count(), fmt.Errorf("failed to write self record: %w", err)
 	}
 
-	if err := struc.Pack(cw, parentRecord); err != nil {
+	if _, err := parentRecord.WriteTo(cw); err != nil {
 		return cw.Count(), fmt.Errorf("failed to write parent record: %w", err)
 	}
 
 	for _, entry := range d.entries {
-		if err := struc.Pack(cw, entry.Record()); err != nil {
+		if _, err := entry.Record().WriteTo(cw); err != nil {
 			return cw.Count(), fmt.Errorf("failed to write directory entry: %w", err)
 		}
 	}
@@ -140,6 +143,10 @@ func (d *directory) Relocate(newLocation uint32) {
 	d.location = newLocation
 }
 
+func (d *directory) Location() uint32 {
+	return d.location
+}
+
 func (d *directory) Entries() []fileLike {
 	return d.entries
 }
@@ -152,6 +159,11 @@ func (d *directory) DataLength() uint32 {
 	for _, entry := range d.entries {
 		size += uint32(entry.RecordLength())
 	}
+
+	// Round the size up to the nearest logical block. I'm not sure why, but everything seems to do this, and isovfy
+	// complains if you don't!
+	// TODO add test for this
+	size = ((size + logicalBlockSize - 1) / logicalBlockSize) * logicalBlockSize
 
 	return size
 }
@@ -243,6 +255,10 @@ func (f *file) RecordLength() uint8 {
 
 func (f *file) Relocate(newLocation uint32) {
 	f.location = newLocation
+}
+
+func (f *file) Location() uint32 {
+	return f.location
 }
 
 func (f *file) Entries() []fileLike {
