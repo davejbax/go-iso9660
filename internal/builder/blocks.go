@@ -1,4 +1,4 @@
-package iso9660
+package builder
 
 import (
 	"errors"
@@ -7,7 +7,16 @@ import (
 	"io"
 )
 
-type blockWriter struct {
+// Logical sector size is set pretty much unanimously to 2048.
+// Logical block size has to be a power of two that's smaller than (or equal to) the logical sector size.
+// We don't have any reason to support logical blocks smaller than the logical sector size, and this simplifies
+// implementation quite a lot.
+const (
+	logicalSectorSize = 2048
+	logicalBlockSize  = logicalSectorSize
+)
+
+type BlockWriter struct {
 	wrapped *counter.Writer
 
 	currentBlock uint32
@@ -15,11 +24,11 @@ type blockWriter struct {
 
 var errNonSequentialBlockWrite = errors.New("cannot write blocks in non-sequential order or rewrite existing blocks")
 
-func newBlockWriter(wrapped io.Writer) *blockWriter {
-	return &blockWriter{wrapped: counter.NewWriter(wrapped)}
+func NewBlockWriter(wrapped io.Writer) *BlockWriter {
+	return &BlockWriter{wrapped: counter.NewWriter(wrapped)}
 }
 
-func (w *blockWriter) WriteBlockFunc(number uint32, writeTo func(io.Writer) (int64, error)) error {
+func (w *BlockWriter) WriteBlockFunc(number uint32, writeTo func(io.Writer) (int64, error)) error {
 	if number < w.currentBlock {
 		return errNonSequentialBlockWrite
 	}
@@ -53,10 +62,10 @@ func (w *blockWriter) WriteBlockFunc(number uint32, writeTo func(io.Writer) (int
 	return nil
 }
 
-func (w *blockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
+func (w *BlockWriter) WriteBlock(number uint32, contents io.WriterTo) error {
 	return w.WriteBlockFunc(number, contents.WriteTo)
 }
 
-func (w *blockWriter) BytesWritten() int64 {
+func (w *BlockWriter) BytesWritten() int64 {
 	return w.wrapped.Count()
 }

@@ -1,58 +1,64 @@
-package iso9660
+package builder_test
 
 import (
 	"bytes"
-	_ "embed"
 	"errors"
+	"fmt"
+	"github.com/davejbax/go-iso9660/internal/builder"
+	"github.com/davejbax/go-iso9660/internal/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/fs"
-	"os"
+	"io"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
-// pathtable.dat is the path table obtained by using a third-party tool to create an ISO
-// from the contents of testdata/pathtable/
-//
-//go:embed testdata/pathtable.dat
-var testdataPathTable []byte
-
-func TestPathTable_WriteTo(t *testing.T) {
-	d, err := newDirectory(os.DirFS("testdata/pathtable").(fs.ReadDirFS), ".", nil, time.Now())
-	require.NoError(t, err, "newDirectory should not throw an error for valid input")
-
-	// Our test data selects blocks sequentially based on a depth-first search of the file tree, excluding files.
-	// In order for our path table to match the test data exactly, we need to do the same thing.
-	block := uint32(23)
-	for entry := range d.Walk(true) {
-		if _, ok := entry.(*file); ok {
-			continue
-		}
-
-		entry.Relocate(block)
-		block += 1
+func buildTestDirectory() *builder.Directory {
+	dummyData := func() (io.Reader, error) {
+		return bytes.NewReader([]byte("foo")), nil
 	}
 
-	table := newPathTable(d)
-	require.NotNil(t, table, "Path table returned by newPathTable should not be nil")
+	root := builder.NewEmptyDirectory(spec.FileIdentifierSelf, time.Now(), nil)
 
-	var output bytes.Buffer
-	count, err := table.WriteTo(&output, false) // Test data is little endian
+	dir0 := builder.NewEmptyDirectory(spec.FileIdentifier("APPLE"), time.Now(), root)
+	dir0_0 := builder.NewEmptyDirectory(spec.FileIdentifier("MELON"), time.Now(), dir0)
+	dir0_0_0 := builder.NewEmptyDirectory(spec.FileIdentifier("BANANA"), time.Now(), dir0_0)
+	dir0_0_1 := builder.NewEmptyDirectory(spec.FileIdentifier("PINEAPPLE"), time.Now(), dir0_0)
+	dir0_0_1_0 := builder.NewFile(spec.FileIdentifier("BBBBBBBB.TXT;1"), time.Now(), 3, dummyData)
+	dir0_1 := builder.NewFile(spec.FileIdentifier("ZZZZ.TXT;1"), time.Now(), 3, dummyData)
+	dir1 := builder.NewEmptyDirectory(spec.FileIdentifier("BANANA"), time.Now(), root)
+	dir1_0 := builder.NewEmptyDirectory(spec.FileIdentifier("1234"), time.Now(), dir1)
+	dir1_1 := builder.NewEmptyDirectory(spec.FileIdentifier("APPLE"), time.Now(), dir1)
+	dir1_2 := builder.NewEmptyDirectory(spec.FileIdentifier("PINEAPPLE"), time.Now(), dir1)
+	dir1_3 := builder.NewFile(spec.FileIdentifier("A.DAT;1"), time.Now(), 3, dummyData)
+	dir2 := builder.NewFile(spec.FileIdentifier("AARDVARK.MP3;1"), time.Now(), 3, dummyData)
 
-	require.NoError(t, err, "WriteTo should not throw an error for valid input")
-	assert.EqualValues(t, output.Len(), count, "WriteTo count should match actual number of written bytes")
+	root.Add(dir0)
+	root.Add(dir1)
+	root.Add(dir2)
 
-	assert.Equal(t, testdataPathTable, output.Bytes(), "Path table encoding should match expected test data")
+	dir0.Add(dir0_0)
+	dir0.Add(dir0_1)
+
+	dir0_0.Add(dir0_0_0)
+	dir0_0.Add(dir0_0_1)
+
+	dir0_0_1.Add(dir0_0_1_0)
+
+	dir1.Add(dir1_0)
+	dir1.Add(dir1_1)
+	dir1.Add(dir1_2)
+	dir1.Add(dir1_3)
+
+	return root
 }
 
 func TestPathTable_Records(t *testing.T) {
-	d, err := newDirectory(os.DirFS("testdata/pathtable").(fs.ReadDirFS), ".", nil, time.Now())
-	require.NoError(t, err, "newDirectory should not throw an error for valid input")
+	d := buildTestDirectory()
 
-	table := newPathTable(d)
+	table := builder.NewPathTable(d)
 	require.NotNil(t, table, "Path table returned by newPathTable should not be nil")
 
 	records := slices.Collect(table.Records())
@@ -88,7 +94,7 @@ var errRecordOrderingDirectoryIdentifierViolated = errors.New("records are not i
 
 // Checks whether a path table record is in the order expected by the spec.
 // Returns (directory identifiers compared, ordering error)
-func checkRecordOrdering(prevParentNumber *uint16, prevDirectoryIdentifier *fileIdentifier, current *pathTableRecord) (bool, error) {
+func checkRecordOrdering(prevParentNumber *uint16, prevDirectoryIdentifier *spec.FileIdentifier, current *spec.PathTableRecord) (bool, error) {
 	defer func() {
 		*prevParentNumber = current.ParentDirectoryNumber
 		*prevDirectoryIdentifier = current.DirectoryIdentifier
@@ -96,7 +102,13 @@ func checkRecordOrdering(prevParentNumber *uint16, prevDirectoryIdentifier *file
 
 	// Ordering requirement #2: parent directory numbers must be ascending
 	if current.ParentDirectoryNumber < *prevParentNumber {
-		return false, errRecordOrderingParentNumberViolated
+		return false, fmt.Errorf("%w: previously-seen directory %s has a higher number (%d) than current directory %s (%d)",
+			errRecordOrderingParentNumberViolated,
+			string(*prevDirectoryIdentifier),
+			*prevParentNumber,
+			string(current.DirectoryIdentifier),
+			current.ParentDirectoryNumber,
+		)
 	} else if current.ParentDirectoryNumber > *prevParentNumber {
 		// This record has a different parent directory number, and therefore lower-precedence ordering rules
 		// don't apply.

@@ -1,7 +1,8 @@
-package iso9660
+package builder_test
 
 import (
 	"bytes"
+	"github.com/davejbax/go-iso9660/internal/builder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -10,7 +11,7 @@ import (
 func TestBlockWriter_WriteBlock(t *testing.T) {
 	var buff bytes.Buffer
 
-	bw := newBlockWriter(&buff)
+	bw := builder.NewBlockWriter(&buff)
 
 	require.NotNil(t, bw, "newBlockWriter should not return nil for valid input")
 

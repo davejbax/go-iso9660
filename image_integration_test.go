@@ -6,6 +6,7 @@ import (
 	"github.com/diskfs/go-diskfs/backend/file"
 	"github.com/diskfs/go-diskfs/filesystem"
 	diskfsiso "github.com/diskfs/go-diskfs/filesystem/iso9660"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -50,6 +51,7 @@ func TestImage(t *testing.T) {
 	disk, err := diskfs.OpenBackend(backend)
 	require.NoError(t, err, "Should be able to open ISO file")
 
+	logrus.SetLevel(logrus.DebugLevel)
 	fs, err := disk.GetFilesystem(0) // Partition 0 is whole disk
 	require.NoError(t, err, "Should be able to read filesystem from ISO file")
 
