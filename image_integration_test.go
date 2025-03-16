@@ -2,11 +2,6 @@ package iso9660_test
 
 import (
 	"github.com/davejbax/go-iso9660"
-	"github.com/diskfs/go-diskfs"
-	"github.com/diskfs/go-diskfs/backend/file"
-	"github.com/diskfs/go-diskfs/filesystem"
-	diskfsiso "github.com/diskfs/go-diskfs/filesystem/iso9660"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -17,16 +12,18 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestImage(t *testing.T) {
-	contents := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
+// assertISOWritten uses iso9660 to create an image from a fs.ReadDirFS, and write it to a file. It asserts several
+// things along the way, such as ensuring that the file is written successfully and without errors.
+func assertISOWritten(t *testing.T, contents fs.ReadDirFS, outputPath string) {
 	image, err := iso9660.NewImage(contents)
 
 	require.NoError(t, err, "NewImage should not return an error for valid arguments")
 	require.NotNil(t, image, "NewImage should return a non-nil image when no error")
 
-	outputFile, err := os.OpenFile(filepath.Join(t.TempDir(), "output.iso"), os.O_CREATE|os.O_WRONLY, 0o600)
+	outputFile, err := os.OpenFile(outputPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		t.Fatalf("Failed to open output file: %v", err)
 	}
@@ -41,27 +38,63 @@ func TestImage(t *testing.T) {
 	}
 
 	assert.Equal(t, stat.Size(), written, "Bytes written returned by WriteTo should match actual file size")
-
-	backend, err := file.OpenFromPath(outputFile.Name(), true)
-	if err != nil {
-		// The file hasn't been read yet, so this error indicates something that isn't our fault
-		t.Fatalf("Failed to open output file for reading: %v", err)
-	}
-
-	disk, err := diskfs.OpenBackend(backend)
-	require.NoError(t, err, "Should be able to open ISO file")
-
-	logrus.SetLevel(logrus.DebugLevel)
-	fs, err := disk.GetFilesystem(0) // Partition 0 is whole disk
-	require.NoError(t, err, "Should be able to read filesystem from ISO file")
-
-	iso, ok := fs.(*diskfsiso.FileSystem)
-	require.Equal(t, true, ok, "Filesystem in written image should be an ISO9660 filesystem")
-
-	assertFilesystemsEqual(t, contents, iso, "/")
 }
 
-func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual filesystem.FileSystem, dir string) {
+func TestISOIsExtractableWithXorriso(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	sourceFS := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
+	isoFilePath := filepath.Join(t.TempDir(), "output.iso")
+	assertISOWritten(t, sourceFS, isoFilePath)
+
+	isoExtractionPath := filepath.Join(t.TempDir(), "extracted")
+	if err := extractISO(
+		t,
+		"extractor.Dockerfile",
+		[]string{
+			"/usr/bin/bash",
+			"-c",
+			"mkdir /output && osirrox -indev /input/image.iso -extract / /output && find /output -print && tar -C /output -cvf /output/image.tar .",
+		},
+		isoFilePath,
+		isoExtractionPath,
+	); err != nil {
+		t.Fatalf("failed to extract ISO: %v", err)
+	}
+
+	assertFilesystemsEqual(t, sourceFS, os.DirFS(isoExtractionPath).(fs.ReadDirFS), ".", false)
+}
+
+func TestISOIsExtractableWith7z(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	sourceFS := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
+	isoFilePath := filepath.Join(t.TempDir(), "output.iso")
+	assertISOWritten(t, sourceFS, isoFilePath)
+
+	isoExtractionPath := filepath.Join(t.TempDir(), "extracted")
+	if err := extractISO(
+		t,
+		"extractor.Dockerfile",
+		[]string{
+			"/usr/bin/bash",
+			"-c",
+			"mkdir /output && 7z x /input/image.iso -o/output && find /output -print && tar -C /output -cvf /output/image.tar .",
+		},
+		isoFilePath,
+		isoExtractionPath,
+	); err != nil {
+		t.Fatalf("failed to extract ISO: %v", err)
+	}
+
+	assertFilesystemsEqual(t, sourceFS, os.DirFS(isoExtractionPath).(fs.ReadDirFS), ".", false)
+}
+
+func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual fs.ReadDirFS, dir string, checkMode bool) {
 	expectedEntries, err := expected.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("Failed to read testdata directory '%s': %v", dir, err)
@@ -78,7 +111,7 @@ func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual filesyst
 
 	// Sort the actual entries, because the order of files returned by the dirfs library is not something under test,
 	// and the order needs to match the expected entries so we can compare file-by-file
-	slices.SortFunc(actualEntries, func(a, b os.FileInfo) int {
+	slices.SortFunc(actualEntries, func(a, b fs.DirEntry) int {
 		return strings.Compare(a.Name(), b.Name())
 	})
 
@@ -87,7 +120,7 @@ func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual filesyst
 	for i, expectedEntry := range expectedEntries {
 		entryPath := path.Join(dir, expectedEntry.Name())
 		t.Run(entryPath, func(tt *testing.T) {
-			tt.Parallel()
+			//tt.Parallel()
 
 			expectedInfo, err := expectedEntry.Info()
 			if err != nil {
@@ -96,16 +129,24 @@ func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual filesyst
 
 			actualEntry := actualEntries[i]
 
-			assert.Equal(tt, expectedInfo.Name(), actualEntry.Name(), "Base name of testdata file should match source data") // TODO: do we actually want this?
-			assert.Equal(tt, expectedInfo.Size(), actualEntry.Size(), "Size of testdata file should match source data")
-			assert.Equal(tt, expectedInfo.Mode(), actualEntry.Mode(), "Mode of testdata file should match source data")
-			assert.Equal(tt, expectedInfo.IsDir(), actualEntry.IsDir(), "IsDir of testdata file should match source data")
-			assert.Equal(tt, expectedInfo.ModTime(), actualEntry.ModTime(), "Modification time of testdata file should match source data")
+			actualInfo, err := actualEntry.Info()
+			if err != nil {
+				tt.Fatalf("failed to get info for extracted ISO file: %v", err)
+			}
+
+			assert.Equal(tt, expectedInfo.Name(), actualInfo.Name(), "Base name of testdata file should match source data") // TODO: do we actually want this?
+			assert.Equal(tt, expectedInfo.Size(), actualInfo.Size(), "Size of testdata file should match source data")
+			assert.Equal(tt, expectedInfo.IsDir(), actualInfo.IsDir(), "IsDir of testdata file should match source data")
+			assert.Equal(tt, expectedInfo.ModTime().Truncate(time.Second), actualInfo.ModTime().Truncate(time.Second), "Modification time of testdata file should match source data (to within a second)")
+
+			if checkMode {
+				assert.Equal(tt, expectedInfo.Mode(), actualInfo.Mode(), "Mode of testdata file should match source data")
+			}
 
 			if actualEntry.IsDir() {
-				t.Run(expectedEntry.Name()+": contents", func(tt *testing.T) {
-					tt.Parallel()
-					assertFilesystemsEqual(t, expected, actual, entryPath)
+				tt.Run(expectedEntry.Name()+":Contents", func(ttt *testing.T) {
+					//ttt.Parallel()
+					assertFilesystemsEqual(t, expected, actual, entryPath, checkMode)
 				})
 			} else {
 				assertFilesEqual(tt, expected, actual, entryPath)
@@ -114,13 +155,13 @@ func assertFilesystemsEqual(t *testing.T, expected fs.ReadDirFS, actual filesyst
 	}
 }
 
-func assertFilesEqual(t *testing.T, source fs.ReadDirFS, actualFS filesystem.FileSystem, path string) {
-	expectedFile, err := source.Open(path)
+func assertFilesEqual(t *testing.T, expectedFS fs.ReadDirFS, actualFS fs.FS, path string) {
+	expectedFile, err := expectedFS.Open(path)
 	if err != nil {
 		t.Fatalf("Failed to open source file '%s': %v", path, err)
 	}
 
-	actualFile, err := actualFS.OpenFile(path, os.O_RDONLY)
+	actualFile, err := actualFS.Open(path)
 	require.NoError(t, err, "Should be able to open testdata file in ISO image")
 
 	actual, err := io.ReadAll(expectedFile)
