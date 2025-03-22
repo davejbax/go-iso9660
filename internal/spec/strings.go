@@ -20,3 +20,14 @@ type ACharacter uint8
 //
 // ECMA-119 (5th ed.) §8.4.1
 type DCharacter uint8
+
+// CCharacter is a character interpreted according to the charset specified
+// by the supplementary volume descriptor's escape sequence.
+//
+// Technically, a1-characters and d1-characters also exist in the specification
+// as subsets of c-characters, however the spec does not specify what this subset
+// should be (this is left up to an agreement between the originator and recipient).
+// Hence, for simplicity, we do not make a distinction here.
+//
+// ECMA-119 (5th ed.) §8.4.2
+type CCharacter uint8

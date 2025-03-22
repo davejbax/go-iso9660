@@ -29,7 +29,7 @@ const (
 	VolumeDescriptorTypeTerminator                         = 255
 )
 
-// FileStructureVersion is a field in the [PrimaryVolumeDescriptor] which indicates the version of the specification for
+// FileStructureVersion is a field in volume descriptors which indicates the version of the specification for
 // records in a directory and in a path table.
 //
 // ECMA-119 (5th ed.) §9.4.31
@@ -79,27 +79,88 @@ type PrimaryVolumeDescriptor struct {
 	PublisherIdentifier            [128]ACharacter
 	DataPreparerIdentifier         [128]DCharacter
 	ApplicationIdentifier          [128]ACharacter
-
-	// TODO: these are actually d1-characters, I think? Except maybe not in a PVD?
-	// They're file identifiers.
-	// TODO: figure out how to implement file identifiers in a Joliet-or-not-agnostic sort of way.
-	CopyrightFileIdentifier     [37]DCharacter
-	AbstractFileIdentifier      [37]DCharacter
-	BibliographicFileIdentifier [37]DCharacter
-	VolumeCreationDateTime      LongDateTime
-	VolumeModificationDateTime  LongDateTime
-	VolumeExpirationDateTime    LongDateTime
-	VolumeEffectiveDateTime     LongDateTime
-	FileStructureVersion        FileStructureVersion
-	Reserved883                 uint8
-	ApplicationUse              [512]uint8
-	Reserved1396                [653]uint8
+	CopyrightFileIdentifier        [37]DCharacter
+	AbstractFileIdentifier         [37]DCharacter
+	BibliographicFileIdentifier    [37]DCharacter
+	VolumeCreationDateTime         LongDateTime
+	VolumeModificationDateTime     LongDateTime
+	VolumeExpirationDateTime       LongDateTime
+	VolumeEffectiveDateTime        LongDateTime
+	FileStructureVersion           FileStructureVersion
+	Reserved883                    uint8
+	ApplicationUse                 [512]uint8
+	Reserved1396                   [653]uint8
 }
 
 func (p *PrimaryVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
 	cw := counter.NewWriter(w)
 
 	if err := struc.Pack(cw, p); err != nil {
+		return cw.Count(), fmt.Errorf("could not pack structure: %w", err)
+	}
+
+	return cw.Count(), nil
+}
+
+// VolumeFlag is a bitwise set of flags specifying some characteristics of the volume, and
+// appears in the supplementary volume descriptor.
+//
+// ECMA-119 (5th ed.) §9.5.4
+type VolumeFlag uint8
+
+const (
+	// VolumeFlagEscapeSequenceIsNonStandard indicates that the escape sequences field in a
+	// supplementary volume descriptor has at least one escape sequence that is NOT registered
+	// with ISO/IEC 2375.
+	//
+	// ECMA-119 (5th ed.) §9.5.4
+	VolumeFlagEscapeSequenceIsNonStandard VolumeFlag = 0x01
+)
+
+// SupplementaryVolumeDescriptor is an optional volume descriptor which provides an
+// entrypoint into extension-implementing parts of the volume -- such as a root
+// directory (and consequent tree) that use file identifiers of an arbitrary encoding,
+// instead of the spec's usual enforced ASCII encoding.
+//
+// ECMA-119 (5th ed.) §9.5
+type SupplementaryVolumeDescriptor struct {
+	Header                         *VolumeDescriptor
+	VolumeFlags                    VolumeFlag
+	SystemIdentifier               [32]CCharacter
+	VolumeIdentifier               [32]CCharacter
+	Unused73                       [8]uint8
+	VolumeSpaceSize                UInt32BothByte
+	EscapeSequences                [32]uint8
+	VolumeSetSize                  UInt16BothByte
+	VolumeSequenceNumber           UInt16BothByte
+	LogicalBlockSize               UInt16BothByte
+	PathTableSize                  UInt32BothByte
+	LocationTypeLPathTable         uint32 `struc:"little"`
+	LocationTypeLOptionalPathTable uint32 `struc:"little"`
+	LocationTypeMPathTable         uint32 `struc:"big"`
+	LocationTypeMOptionalPathTable uint32 `struc:"big"`
+	RootDirectoryRecord            *DirectoryRecord
+	VolumeSetIdentifier            [128]CCharacter
+	PublisherIdentifier            [128]CCharacter
+	DataPreparerIdentifier         [128]CCharacter
+	ApplicationIdentifier          [128]CCharacter
+	CopyrightFileIdentifier        [37]CCharacter
+	AbstractFileIdentifier         [37]CCharacter
+	BibliographicFileIdentifier    [37]CCharacter
+	VolumeCreationDateTime         LongDateTime
+	VolumeModificationDateTime     LongDateTime
+	VolumeExpirationDateTime       LongDateTime
+	VolumeEffectiveDateTime        LongDateTime
+	FileStructureVersion           FileStructureVersion
+	Reserved883                    uint8
+	ApplicationUse                 [512]uint8
+	Reserved1396                   [653]uint8
+}
+
+func (s *SupplementaryVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
+	cw := counter.NewWriter(w)
+
+	if err := struc.Pack(cw, s); err != nil {
 		return cw.Count(), fmt.Errorf("could not pack structure: %w", err)
 	}
 
