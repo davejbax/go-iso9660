@@ -23,7 +23,7 @@ func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *
 		var err error
 		identifier, err = encode.AsFileIdentifier(path.Base(filesystemPath), "", 1, encode.FileIdentifierEncodingDCharacter)
 		if err != nil {
-			return nil, fmt.Errorf("Directory has invalid name: %w", err)
+			return nil, fmt.Errorf("directory has invalid name: %w", err)
 		}
 	}
 

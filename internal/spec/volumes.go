@@ -126,8 +126,8 @@ const (
 type SupplementaryVolumeDescriptor struct {
 	Header                         *VolumeDescriptor
 	VolumeFlags                    VolumeFlag
-	SystemIdentifier               [32]CCharacter
-	VolumeIdentifier               [32]CCharacter
+	SystemIdentifier               [32]CCharacterByte
+	VolumeIdentifier               [32]CCharacterByte
 	Unused73                       [8]uint8
 	VolumeSpaceSize                UInt32BothByte
 	EscapeSequences                [32]uint8
@@ -140,13 +140,13 @@ type SupplementaryVolumeDescriptor struct {
 	LocationTypeMPathTable         uint32 `struc:"big"`
 	LocationTypeMOptionalPathTable uint32 `struc:"big"`
 	RootDirectoryRecord            *DirectoryRecord
-	VolumeSetIdentifier            [128]CCharacter
-	PublisherIdentifier            [128]CCharacter
-	DataPreparerIdentifier         [128]CCharacter
-	ApplicationIdentifier          [128]CCharacter
-	CopyrightFileIdentifier        [37]CCharacter
-	AbstractFileIdentifier         [37]CCharacter
-	BibliographicFileIdentifier    [37]CCharacter
+	VolumeSetIdentifier            [128]CCharacterByte
+	PublisherIdentifier            [128]CCharacterByte
+	DataPreparerIdentifier         [128]CCharacterByte
+	ApplicationIdentifier          [128]CCharacterByte
+	CopyrightFileIdentifier        [37]CCharacterByte
+	AbstractFileIdentifier         [37]CCharacterByte
+	BibliographicFileIdentifier    [37]CCharacterByte
 	VolumeCreationDateTime         LongDateTime
 	VolumeModificationDateTime     LongDateTime
 	VolumeExpirationDateTime       LongDateTime
