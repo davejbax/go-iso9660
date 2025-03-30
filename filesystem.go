@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *builder.Directory, recordedAt time.Time) (*builder.Directory, error) {
+func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *builder.Directory, recordedAt time.Time, escapeSeq encode.EscapeSequence) (*builder.Directory, error) {
 	var identifier spec.FileIdentifier
 
 	if parent == nil {
@@ -21,7 +21,7 @@ func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *
 		identifier = spec.FileIdentifierSelf
 	} else {
 		var err error
-		identifier, err = encode.AsFileIdentifier(path.Base(filesystemPath), "", 1, encode.FileIdentifierEncodingDCharacter)
+		identifier, err = encode.AsFileIdentifier(path.Base(filesystemPath), 0, escapeSeq)
 		if err != nil {
 			return nil, fmt.Errorf("directory has invalid name: %w", err)
 		}
@@ -49,7 +49,7 @@ func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *
 		}
 
 		if entry.IsDir() {
-			entryDir, err := newDirectoryFromFS(filesystem, entryPath, dir, info.ModTime())
+			entryDir, err := newDirectoryFromFS(filesystem, entryPath, dir, info.ModTime(), escapeSeq)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create subdirectory '%s': %w", entryPath, err)
 			}
@@ -57,7 +57,7 @@ func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *
 			entryFileLike = entryDir
 		} else {
 			// TODO: handle case where file is > 4GB here
-			entryFile, err := newFile(filesystem, entryPath, info.ModTime(), uint32(info.Size()))
+			entryFile, err := newFile(filesystem, entryPath, info.ModTime(), uint32(info.Size()), escapeSeq)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create file '%s': %w", entryPath, err)
 			}
@@ -72,17 +72,8 @@ func newDirectoryFromFS(filesystem fs.ReadDirFS, filesystemPath string, parent *
 	return dir, nil
 }
 
-func newFile(filesystem fs.FS, filesystemPath string, recordedAt time.Time, size uint32) (*builder.File, error) {
-	filenameAndExtension := path.Base(filesystemPath)
-	filename := filenameAndExtension
-	extension := ""
-
-	if index := strings.LastIndex(filenameAndExtension, "."); index != -1 {
-		filename = filenameAndExtension[:index]
-		extension = filenameAndExtension[index+1:]
-	}
-
-	identifier, err := encode.AsFileIdentifier(filename, extension, 1, encode.FileIdentifierEncodingDCharacter)
+func newFile(filesystem fs.FS, filesystemPath string, recordedAt time.Time, size uint32, escapeSeq encode.EscapeSequence) (*builder.File, error) {
+	identifier, err := encode.AsFileIdentifier(path.Base(filesystemPath), 1, escapeSeq)
 	if err != nil {
 		return nil, fmt.Errorf("could not create file identifier: %w", err)
 	}

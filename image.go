@@ -3,6 +3,7 @@ package iso9660
 import (
 	"fmt"
 	"github.com/davejbax/go-iso9660/internal/builder"
+	"github.com/davejbax/go-iso9660/internal/encode"
 	"github.com/davejbax/go-iso9660/internal/spec"
 	"github.com/itchio/headway/counter"
 	"github.com/lunixbochs/struc"
@@ -23,7 +24,7 @@ func NewImage(contents fs.ReadDirFS) (*Image, error) {
 
 func (i *Image) WriteTo(w io.Writer) (int64, error) {
 	// TODO: probably move this to the constructor?
-	dir, err := newDirectoryFromFS(i.source, ".", nil, time.Now())
+	dir, err := newDirectoryFromFS(i.source, ".", nil, time.Now(), encode.EscapeSequenceNone)
 	if err != nil {
 		return 0, fmt.Errorf("could not create directory: %w", err)
 	}
@@ -59,6 +60,17 @@ func (i *Image) WriteTo(w io.Writer) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("could not create primary volume descriptor: %w", err)
 	}
+
+	// TODO: support UCS-2/Joliet file identifiers -- then use those to make a pathtable and directory
+	//svd, err := builder.NewSupplementaryVolumeDescriptor(
+	//	"",
+	//	"test",
+	//	"test",
+	//	"publisher",
+	//	"datapreparer",
+	//	"application",
+	//	block,
+	//	pathTableSize)
 
 	bw := builder.NewBlockWriter(w)
 
