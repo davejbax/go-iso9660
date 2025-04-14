@@ -170,8 +170,19 @@ func (s *SupplementaryVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
 // TerminatorVolumeDescriptor is a volume descriptor with no payload that signals the end of the volume descriptor set.
 //
 // ECMA-119 (5th ed.) §9.3
-var TerminatorVolumeDescriptor = &VolumeDescriptor{
-	Kind:                    VolumeDescriptorTypeTerminator,
-	StandardIdentifier:      StandardIdentifier,
-	VolumeDescriptorVersion: 1, // Always 1
+type TerminatorVolumeDescriptor struct{}
+
+func (t *TerminatorVolumeDescriptor) WriteTo(w io.Writer) (int64, error) {
+	tvd := &VolumeDescriptor{
+		Kind:                    VolumeDescriptorTypeTerminator,
+		StandardIdentifier:      StandardIdentifier,
+		VolumeDescriptorVersion: 1, // Always 1
+	}
+
+	cw := counter.NewWriter(w)
+	if err := struc.Pack(cw, tvd); err != nil {
+		return cw.Count(), fmt.Errorf("could not encode TVD: %w", err)
+	}
+
+	return cw.Count(), nil
 }

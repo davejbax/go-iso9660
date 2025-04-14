@@ -31,7 +31,7 @@ var (
 // in PVDs, an extension on a directory is invalid (this again is relaxed in SVDs with Joliet).
 // If escapeSeq is [EscapeSequenceNone] and the filename violates these requirements, encoding
 // will fail and an error shall be returned.
-func AsFileIdentifier(filename string, version int, escapeSeq EscapeSequence) (spec.FileIdentifier, error) {
+func AsFileIdentifier(filename string, version uint, escapeSeq EscapeSequence) (spec.FileIdentifier, error) {
 	if version < 0 || version > 32767 {
 		return nil, ErrInvalidVersion
 	}
@@ -51,12 +51,17 @@ func AsFileIdentifier(filename string, version int, escapeSeq EscapeSequence) (s
 				return nil, fmt.Errorf("could not encode filename as d-characters: %w", err)
 			}
 
+			// TODO: encode the following requirements (and add unit tests for them!)
+			// - if no chars in filename, extension must be one char
+			// - if no chars in extension, filename must be one char
+			// - sum of name and extension must not exceed 30 (trim down *filename* in the case where it is)
+
 			encodedExtension := make([]spec.DCharacter, len(extension))
 			if err := AsDCharacters(extension, encodedExtension, true, true); err != nil {
 				return nil, fmt.Errorf("could not encode extension as d-characters: %w", err)
 			}
 
-			encodedVersion := strconv.Itoa(version)
+			encodedVersion := strconv.FormatUint(uint64(version), 10)
 
 			fi := make(spec.FileIdentifier, 0, len(encodedFilename)+1+len(encodedExtension)+1+len(encodedVersion))
 			fi = append(fi, encodedFilename...)
@@ -90,7 +95,7 @@ func AsFileIdentifier(filename string, version int, escapeSeq EscapeSequence) (s
 		if version > 0 {
 			fi = append(fi, uint8(0x00), uint8(';'))
 
-			versionString := strconv.Itoa(version)
+			versionString := strconv.FormatUint(uint64(version), 10)
 			encodedVersion, err := encoder.Bytes([]byte(versionString))
 			if err != nil {
 				return nil, fmt.Errorf("could not encode version: %w", err)

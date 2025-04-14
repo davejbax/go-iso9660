@@ -46,7 +46,7 @@ func (w *BlockWriter) WriteBlockFunc(number uint32, writeTo func(io.Writer) (int
 	if err != nil {
 		return fmt.Errorf("failed to write contents to block: %w", err)
 	}
-
+	
 	contentsBlocks := (contentsSize + logicalBlockSize - 1) / logicalBlockSize
 
 	if contentsBlocks*logicalBlockSize > contentsSize {

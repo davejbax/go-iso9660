@@ -65,6 +65,7 @@ func AsDCharacters(input string, output []spec.DCharacter, strict bool, tryConve
 
 	if tryConvert {
 		input = strings.ToUpper(input)
+		// TODO: try converting by stripping out invalid chars
 	}
 
 	if strict && !dCharacterRegex.MatchString(input) {
