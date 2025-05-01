@@ -12,6 +12,7 @@ import (
 func main() {
 	dir := flag.String("dir", "", "Directory to use as source for ISO file")
 	output := flag.String("output", "mkiso.iso", "Output file name/path")
+	joliet := flag.Bool("joliet", false, "Whether to use Joliet extension")
 
 	flag.Parse()
 
@@ -19,7 +20,14 @@ func main() {
 		flag.Usage()
 	}
 
-	img, err := iso9660.NewImage(os.DirFS(*dir).(fs.ReadDirFS))
+	builder := iso9660.New(os.DirFS(*dir).(fs.ReadDirFS)).
+		WithMetadata(iso9660.Metadata{ApplicationIdentifier: "foobar"})
+
+	if *joliet {
+		builder = builder.WithJoliet()
+	}
+
+	image, err := builder.Build()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,7 +38,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if _, err := img.WriteTo(outputFile); err != nil {
+	if _, err := image.WriteTo(outputFile); err != nil {
 		log.Fatal(err)
 	}
 

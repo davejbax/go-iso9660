@@ -17,11 +17,11 @@ import (
 
 // assertISOWritten uses iso9660 to create an image from a fs.ReadDirFS, and write it to a file. It asserts several
 // things along the way, such as ensuring that the file is written successfully and without errors.
-func assertISOWritten(t *testing.T, contents fs.ReadDirFS, outputPath string) {
-	image, err := iso9660.NewImage(contents)
+func assertISOWritten(t *testing.T, builder *iso9660.Builder, outputPath string) {
+	image, err := builder.Build()
 
-	require.NoError(t, err, "NewImage should not return an error for valid arguments")
-	require.NotNil(t, image, "NewImage should return a non-nil image when no error")
+	require.NoError(t, err, "New should not return an error for valid arguments")
+	require.NotNil(t, image, "New should return a non-nil image when no error")
 
 	outputFile, err := os.OpenFile(outputPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
@@ -40,15 +40,46 @@ func assertISOWritten(t *testing.T, contents fs.ReadDirFS, outputPath string) {
 	assert.Equal(t, stat.Size(), written, "Bytes written returned by WriteTo should match actual file size")
 }
 
-func TestISOIsExtractableWithXorriso(t *testing.T) {
+func TestISOIsExtractable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
-	sourceFS := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
-	isoFilePath := filepath.Join(t.TempDir(), "output.iso")
-	assertISOWritten(t, sourceFS, isoFilePath)
+	cases := []struct {
+		name     string
+		sourceFS fs.ReadDirFS
+		builder  *iso9660.Builder
+	}{
+		{
+			name:     "originalspec",
+			sourceFS: os.DirFS("testdata/images/originalspec").(fs.ReadDirFS),
+			builder:  iso9660.New(os.DirFS("testdata/images/originalspec").(fs.ReadDirFS)),
+		},
+		{
+			name:     "joliet",
+			sourceFS: os.DirFS("testdata/images/joliet").(fs.ReadDirFS),
+			builder: iso9660.New(os.DirFS("testdata/images/joliet").(fs.ReadDirFS)).
+				WithJoliet(),
+		},
+	}
 
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			isoFilePath := filepath.Join(t.TempDir(), "output.iso")
+			assertISOWritten(t, c.builder, isoFilePath)
+
+			t.Run("xorriso", func(t *testing.T) {
+				testISOIsExtractableWithXorriso(t, isoFilePath, c.sourceFS)
+			})
+
+			t.Run("7z", func(t *testing.T) {
+				testISOIsExtractableWith7z(t, isoFilePath, c.sourceFS)
+			})
+		})
+	}
+}
+
+func testISOIsExtractableWithXorriso(t *testing.T, isoFilePath string, sourceFS fs.ReadDirFS) {
 	isoExtractionPath := filepath.Join(t.TempDir(), "extracted")
 	if err := extractISO(
 		t,
@@ -67,15 +98,7 @@ func TestISOIsExtractableWithXorriso(t *testing.T) {
 	assertFilesystemsEqual(t, sourceFS, os.DirFS(isoExtractionPath).(fs.ReadDirFS), ".", false)
 }
 
-func TestISOIsExtractableWith7z(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
-	sourceFS := os.DirFS("testdata/imageroot").(fs.ReadDirFS)
-	isoFilePath := filepath.Join(t.TempDir(), "output.iso")
-	assertISOWritten(t, sourceFS, isoFilePath)
-
+func testISOIsExtractableWith7z(t *testing.T, isoFilePath string, sourceFS fs.ReadDirFS) {
 	isoExtractionPath := filepath.Join(t.TempDir(), "extracted")
 	if err := extractISO(
 		t,

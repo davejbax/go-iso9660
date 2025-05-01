@@ -1,0 +1,1 @@
+The original ISO9660 (or ECMA-119) spec only allowed for eight levels in the directory hierarchy. Joliet lifts this restriction.
